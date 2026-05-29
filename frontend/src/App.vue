@@ -23,16 +23,14 @@
 
           <h2>
             {{
-              isRegister
-                ? 'Tạo tài khoản'
-                : isForgot
-                ? 'Quên mật khẩu'
-                : 'Đăng nhập'
+              isRegister ? 'Tạo tài khoản' :
+              isVerify ? 'Xác thực Email' :
+              isForgot ? 'Quên mật khẩu' : 'Đăng nhập'
             }}
           </h2>
 
           <!-- ================= LOGIN ================= -->
-          <div v-if="!isRegister && !isForgot">
+          <div v-if="!isRegister && !isForgot && !isVerify">
 
             <input v-model="loginForm.email" placeholder="Email" />
             <input v-model="loginForm.password" type="password" placeholder="Mật khẩu" />
@@ -45,12 +43,12 @@
             </div>
 
             <div class="bottom-link">
-              <span @click="isForgot = true">Quên mật khẩu?</span>
+              <span @click="switchToForgot">Quên mật khẩu?</span>
             </div>
 
             <div class="bottom-link">
-              Chưa có tài khoản?
-              <span @click="isRegister = true">Đăng ký</span>
+              Chưa có tài khoản? 
+              <span @click="switchToRegister">Đăng ký</span>
             </div>
           </div>
 
@@ -65,29 +63,51 @@
             <button @click="register">Đăng ký</button>
 
             <div class="bottom-link">
-              Đã có tài khoản?
-              <span @click="backLogin">Đăng nhập</span>
+              Đã có tài khoản? 
+              <span @click="backToLogin">Đăng nhập</span>
             </div>
           </div>
 
-          <!-- ================= FORGOT ================= -->
+          <!-- ================= VERIFY EMAIL ================= -->
+          <div v-if="isVerify">
+
+            <p class="info-text">
+              Chúng tôi đã gửi mã OTP đến email:<br>
+              <strong>{{ verifyForm.email }}</strong>
+            </p>
+            
+            <input 
+              v-model="verifyForm.otp" 
+              placeholder="Nhập mã OTP 6 số" 
+              maxlength="6"
+            />
+            
+            <button @click="verifyOtp">Xác thực Email</button>
+            <button class="secondary" @click="resendOtp">Gửi lại OTP</button>
+
+            <div class="bottom-link">
+              <span @click="backToLogin">Quay lại đăng nhập</span>
+            </div>
+          </div>
+
+          <!-- ================= FORGOT PASSWORD ================= -->
           <div v-if="isForgot">
 
-            <!-- STEP 1 -->
+            <!-- STEP 1: Nhập email -->
             <div v-if="!otpSent">
-              <input v-model="forgotForm.email" placeholder="Nhập email" />
+              <input v-model="forgotForm.email" placeholder="Nhập email của bạn" />
               <button @click="sendOtp">Gửi OTP</button>
             </div>
 
-            <!-- STEP 2 -->
+            <!-- STEP 2: Nhập OTP và mật khẩu mới -->
             <div v-else>
-              <input v-model="forgotForm.otp" placeholder="Nhập OTP" />
+              <input v-model="forgotForm.otp" placeholder="Nhập OTP" maxlength="6" />
               <input v-model="forgotForm.newPassword" type="password" placeholder="Mật khẩu mới" />
               <button @click="resetPassword">Đổi mật khẩu</button>
             </div>
 
             <div class="bottom-link">
-              <span @click="backLogin">Quay lại đăng nhập</span>
+              <span @click="backToLogin">Quay lại đăng nhập</span>
             </div>
           </div>
 
@@ -107,13 +127,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 
 const API = 'http://localhost:8080/api/auth'
 
 // ================= STATE =================
 const isRegister = ref(false)
 const isForgot = ref(false)
+const isVerify = ref(false)
 const otpSent = ref(false)
 
 const error = ref('')
@@ -138,22 +159,9 @@ const forgotForm = ref({
   newPassword: ''
 })
 
-// ================= GOOGLE CALLBACK =================
-onMounted(() => {
-  const params = new URLSearchParams(window.location.search)
-  const token = params.get('token')
-
-  if (token) {
-    localStorage.setItem('token', token)
-    success.value = 'Đăng nhập Google thành công'
-
-    // xóa token khỏi url
-    window.history.replaceState(
-      {},
-      document.title,
-      window.location.pathname
-    )
-  }
+const verifyForm = ref({
+  email: '',
+  otp: ''
 })
 
 // ================= HELPERS =================
@@ -162,11 +170,28 @@ function clearMsg() {
   success.value = ''
 }
 
-function backLogin() {
+function backToLogin() {
   isRegister.value = false
   isForgot.value = false
+  isVerify.value = false
   otpSent.value = false
   clearMsg()
+
+  // Reset form
+  loginForm.value = { email: '', password: '' }
+  registerForm.value = { hoTen: '', email: '', soDienThoai: '', password: '' }
+  forgotForm.value = { email: '', otp: '', newPassword: '' }
+  verifyForm.value = { email: '', otp: '' }
+}
+
+function switchToRegister() {
+  backToLogin()
+  isRegister.value = true
+}
+
+function switchToForgot() {
+  backToLogin()
+  isForgot.value = true
 }
 
 // ================= LOGIN =================
@@ -185,7 +210,13 @@ async function login() {
     const text = await res.text()
 
     if (!res.ok) {
-      error.value = text
+      if (text === "Email chưa xác thực") {
+        verifyForm.value.email = loginForm.value.email
+        isVerify.value = true
+        error.value = "Email của bạn chưa được xác thực. Vui lòng xác thực ngay bây giờ."
+      } else {
+        error.value = text
+      }
       return
     }
 
@@ -217,15 +248,80 @@ async function register() {
       return
     }
 
+    // Chuyển sang màn xác thực sau khi đăng ký
     success.value = text
+    verifyForm.value.email = registerForm.value.email
     isRegister.value = false
+    isVerify.value = true
 
   } catch {
     error.value = 'Không kết nối được server'
   }
 }
 
-// ================= SEND OTP =================
+// ================= VERIFY EMAIL =================
+async function verifyOtp() {
+  clearMsg()
+
+  try {
+    const res = await fetch(`${API}/verify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: verifyForm.value.email,
+        otp: verifyForm.value.otp
+      })
+    })
+
+    const text = await res.text()
+
+    if (!res.ok) {
+      error.value = text
+      return
+    }
+
+    success.value = 'Xác thực email thành công!'
+    
+    setTimeout(() => {
+      backToLogin()
+    }, 1800)
+
+  } catch {
+    error.value = 'Không kết nối được server'
+  }
+}
+
+// ================= RESEND OTP =================
+async function resendOtp() {
+  clearMsg()
+
+  try {
+    const res = await fetch(`${API}/resend-verify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: verifyForm.value.email
+      })
+    })
+
+    const text = await res.text()
+
+    if (!res.ok) {
+      error.value = text
+    } else {
+      success.value = text
+    }
+
+  } catch {
+    error.value = 'Không kết nối được server'
+  }
+}
+
+// ================= FORGOT PASSWORD =================
 async function sendOtp() {
   clearMsg()
 
@@ -255,7 +351,6 @@ async function sendOtp() {
   }
 }
 
-// ================= RESET =================
 async function resetPassword() {
   clearMsg()
 
@@ -276,25 +371,27 @@ async function resetPassword() {
     }
 
     success.value = text
-    backLogin()
+    setTimeout(() => {
+      backToLogin()
+    }, 1500)
 
   } catch {
     error.value = 'Không kết nối được server'
   }
 }
 
-// ================= GOOGLE LOGIN =================
+// ================= SOCIAL LOGIN =================
 function loginGoogle() {
-  window.location.href =
-    'http://localhost:8080/oauth2/authorization/google'
+  window.location.href = 'http://localhost:8080/oauth2/authorization/google'
 }
 
-// ================= FACEBOOK LOGIN =================
 function loginFacebook() {
-  alert('Facebook login chưa setup')
+  alert('Facebook login chưa được triển khai')
 }
 </script>
+
 <style scoped>
+/* Giữ nguyên style như cũ của bạn */
 * { box-sizing: border-box; }
 
 .page {
@@ -371,9 +468,14 @@ button {
   color: white;
   font-weight: bold;
   cursor: pointer;
+  margin-bottom: 8px;
 }
 
 button:hover { transform: translateY(-2px); }
+
+.secondary {
+  background: #666;
+}
 
 .social {
   display: flex;
@@ -395,10 +497,17 @@ button:hover { transform: translateY(-2px); }
   font-weight: 600;
 }
 
+.info-text {
+  text-align: center;
+  margin-bottom: 15px;
+  color: #555;
+}
+
 .msg {
   margin-top: 15px;
   padding: 12px;
   border-radius: 10px;
+  text-align: center;
 }
 
 .error {

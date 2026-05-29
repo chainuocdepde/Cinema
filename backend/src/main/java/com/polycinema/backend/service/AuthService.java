@@ -22,9 +22,9 @@ public class AuthService {
 
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
-    // ================= OTP RAM STORE =================
+    // ================= OTP STORE =================
     private final Map<String, OtpData> otpStore = new HashMap<>();
-    private static final long EXPIRE_TIME = 15 * 60 * 1000; // 15 phút
+    private static final long EXPIRE_TIME = 15 * 60 * 1000;
 
     static class OtpData {
         String code;
@@ -38,19 +38,16 @@ public class AuthService {
 
     // ================= VALIDATION =================
     private String validateEmail(String email) {
-        if (email == null || email.isBlank())
-            return "Email không được để trống";
+        if (email == null || email.isBlank()) return "Email không được để trống";
 
         String regex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$";
-        if (!Pattern.matches(regex, email))
-            return "Email không đúng định dạng";
+        if (!Pattern.matches(regex, email)) return "Email không đúng định dạng";
 
         return null;
     }
 
     private String validatePhone(String phone) {
-        if (phone == null || phone.isBlank())
-            return "Số điện thoại không được để trống";
+        if (phone == null || phone.isBlank()) return "Số điện thoại không được để trống";
 
         if (!phone.matches("^(03|05|07|08|09)\\d{8}$"))
             return "Số điện thoại không hợp lệ";
@@ -59,11 +56,10 @@ public class AuthService {
     }
 
     private String validateName(String name) {
-        if (name == null || name.isBlank())
-            return "Họ tên không được để trống";
+        if (name == null || name.isBlank()) return "Họ tên không được để trống";
 
         if (!name.matches("^[\\p{L} ]+$"))
-            return "Họ tên không được chứa số hoặc ký tự đặc biệt";
+            return "Họ tên không hợp lệ";
 
         return null;
     }
@@ -99,9 +95,10 @@ public class AuthService {
 
         repo.save(u);
 
-        emailService.sendWelcome(email, hoTen);
+        // gửi OTP verify
+        sendVerifyOtp(email);
 
-        return "Đăng ký thành công";
+        return "Đăng ký thành công. Vui lòng xác thực email";
     }
 
     // ================= LOGIN =================
@@ -120,31 +117,69 @@ public class AuthService {
         return jwtUtil.generateToken(email, u.getVaiTro());
     }
 
-    // ================= SEND OTP (RAM) =================
-    public String sendOtp(String email) {
+    // ================= SEND VERIFY OTP =================
+    public String sendVerifyOtp(String email) {
 
         email = email.trim().toLowerCase();
 
         if (repo.findByEmail(email).isEmpty())
             return "Email không tồn tại";
 
-        // xoá OTP cũ
         otpStore.remove(email);
 
         String otp = String.valueOf(100000 + new Random().nextInt(900000));
 
-        otpStore.put(email,
-                new OtpData(otp, System.currentTimeMillis() + EXPIRE_TIME)
-        );
+        otpStore.put(email, new OtpData(
+                otp,
+                System.currentTimeMillis() + EXPIRE_TIME
+        ));
 
         try {
             emailService.sendOtp(email, otp);
         } catch (Exception e) {
             e.printStackTrace();
-            return "Không gửi được email OTP";
+            return "Không gửi được OTP";
         }
 
         return "OTP đã gửi";
+    }
+
+    // ================= VERIFY EMAIL =================
+    public String verifyEmail(String email, String otp) {
+
+        email = email.trim().toLowerCase();
+
+        OtpData data = otpStore.get(email);
+
+        if (data == null) return "Không tìm thấy OTP";
+
+        if (System.currentTimeMillis() > data.expireAt) {
+            otpStore.remove(email);
+            return "OTP hết hạn";
+        }
+
+        if (!data.code.equals(otp))
+            return "Sai OTP";
+
+        NguoiDung u = repo.findByEmail(email).orElse(null);
+        if (u == null) return "Không tồn tại user";
+
+        u.setIsEmailVerified(true);
+        repo.save(u);
+
+        otpStore.remove(email);
+
+        return "Xác thực email thành công";
+    }
+
+    // ================= RESEND OTP =================
+    public String resendVerifyOtp(String email) {
+        return sendVerifyOtp(email);
+    }
+
+    // ================= FORGOT PASSWORD =================
+    public String sendForgotOtp(String email) {
+        return sendVerifyOtp(email);
     }
 
     // ================= RESET PASSWORD =================
@@ -154,28 +189,23 @@ public class AuthService {
 
         OtpData data = otpStore.get(email);
 
-        if (data == null)
-            return "Không tìm thấy OTP";
+        if (data == null) return "Không tìm thấy OTP";
 
-        // hết hạn
         if (System.currentTimeMillis() > data.expireAt) {
             otpStore.remove(email);
             return "OTP hết hạn";
         }
 
-        // sai OTP
         if (!data.code.equals(otp))
             return "Sai OTP";
 
         NguoiDung u = repo.findByEmail(email).orElse(null);
 
-        if (u == null)
-            return "Không tồn tại user";
+        if (u == null) return "Không tồn tại user";
 
         u.setMatKhauHash(encoder.encode(newPass));
         repo.save(u);
 
-        // xoá OTP sau khi dùng
         otpStore.remove(email);
 
         return "Đổi mật khẩu thành công";

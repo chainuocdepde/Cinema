@@ -1,79 +1,80 @@
 package com.polycinema.backend.controller;
 
-import com.polycinema.backend.dto.*;
 import com.polycinema.backend.service.AuthService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "http://localhost:5173")
 public class AuthController {
 
     private final AuthService service;
 
     // ================= REGISTER =================
     @PostMapping("/register")
-    public ResponseEntity<String> register(@RequestBody RegisterRequest req) {
-
-        String result = service.register(
-                req.getEmail(),
-                req.getPassword(),
-                req.getHoTen(),
-                req.getSoDienThoai()
+    public ResponseEntity<?> register(@RequestBody Map<String, String> req) {
+        return ResponseEntity.ok(
+                service.register(
+                        req.get("email"),
+                        req.get("password"),
+                        req.get("hoTen"),
+                        req.get("soDienThoai")
+                )
         );
-
-        if (!result.equals("Đăng ký thành công")) {
-            return ResponseEntity.badRequest().body(result);
-        }
-
-        return ResponseEntity.ok(result);
     }
 
     // ================= LOGIN =================
     @PostMapping("/login")
-    public ResponseEntity<String> login(@RequestBody LoginRequest req) {
-
-        String result = service.login(req.getEmail(), req.getPassword());
-
-        if (result.equals("Sai email hoặc mật khẩu")
-                || result.equals("Email chưa xác thực")) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(result);
-        }
-
-        return ResponseEntity.ok(result);
+    public ResponseEntity<?> login(@RequestBody Map<String, String> req) {
+        return ResponseEntity.ok(
+                service.login(
+                        req.get("email"),
+                        req.get("password")
+                )
+        );
     }
 
-    // ================= FORGOT PASSWORD =================
+    // ================= VERIFY EMAIL =================
+    @PostMapping("/verify")
+    public ResponseEntity<?> verify(@RequestBody Map<String, String> req) {
+        return ResponseEntity.ok(
+                service.verifyEmail(
+                        req.get("email"),
+                        req.get("otp")
+                )
+        );
+    }
+
+    // ================= RESEND VERIFY OTP =================
+    @PostMapping("/resend-verify")
+    public ResponseEntity<?> resend(@RequestBody Map<String, String> req) {
+        return ResponseEntity.ok(
+                service.resendVerifyOtp(req.get("email"))
+        );
+    }
+
+    // ================= FORGOT PASSWORD (SEND OTP) =================
     @PostMapping("/forgot")
-    public ResponseEntity<String> forgot(@RequestBody ForgotRequest req) {
-
-        String result = service.sendOtp(req.getEmail());
-
-        if (!result.equals("OTP đã gửi")) {
-            return ResponseEntity.badRequest().body(result);
-        }
-
-        return ResponseEntity.ok(result);
+    public ResponseEntity<?> forgot(@RequestBody Map<String, String> req) {
+        return ResponseEntity.ok(
+                service.sendForgotOtp(req.get("email"))
+        );
     }
 
     // ================= RESET PASSWORD =================
     @PostMapping("/reset")
-    public ResponseEntity<String> reset(@RequestBody ResetPasswordRequest req) {
-
-        String result = service.resetPassword(
-                req.getEmail(),
-                req.getOtp(),
-                req.getNewPassword()
+    public ResponseEntity<?> reset(@RequestBody Map<String, String> req) {
+        return ResponseEntity.ok(
+                service.resetPassword(
+                        req.get("email"),
+                        req.get("otp"),
+                        req.get("newPassword")
+                )
         );
-
-        if (!result.equals("Đổi mật khẩu thành công")) {
-            return ResponseEntity.badRequest().body(result);
-        }
-
-        return ResponseEntity.ok(result);
     }
 }
