@@ -107,7 +107,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 
 const API = 'http://localhost:8080/api/auth'
 
@@ -138,6 +138,24 @@ const forgotForm = ref({
   newPassword: ''
 })
 
+// ================= GOOGLE CALLBACK =================
+onMounted(() => {
+  const params = new URLSearchParams(window.location.search)
+  const token = params.get('token')
+
+  if (token) {
+    localStorage.setItem('token', token)
+    success.value = 'Đăng nhập Google thành công'
+
+    // xóa token khỏi url
+    window.history.replaceState(
+      {},
+      document.title,
+      window.location.pathname
+    )
+  }
+})
+
 // ================= HELPERS =================
 function clearMsg() {
   error.value = ''
@@ -158,7 +176,9 @@ async function login() {
   try {
     const res = await fetch(`${API}/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify(loginForm.value)
     })
 
@@ -169,8 +189,8 @@ async function login() {
       return
     }
 
-    success.value = 'Đăng nhập thành công'
     localStorage.setItem('token', text)
+    success.value = 'Đăng nhập thành công'
 
   } catch {
     error.value = 'Không kết nối được server'
@@ -184,7 +204,9 @@ async function register() {
   try {
     const res = await fetch(`${API}/register`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify(registerForm.value)
     })
 
@@ -210,8 +232,12 @@ async function sendOtp() {
   try {
     const res = await fetch(`${API}/forgot`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: forgotForm.value.email })
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: forgotForm.value.email
+      })
     })
 
     const text = await res.text()
@@ -229,14 +255,16 @@ async function sendOtp() {
   }
 }
 
-// ================= RESET PASSWORD =================
+// ================= RESET =================
 async function resetPassword() {
   clearMsg()
 
   try {
     const res = await fetch(`${API}/reset`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify(forgotForm.value)
     })
 
@@ -255,18 +283,17 @@ async function resetPassword() {
   }
 }
 
-// ================= OAUTH =================
+// ================= GOOGLE LOGIN =================
 function loginGoogle() {
   window.location.href =
     'http://localhost:8080/oauth2/authorization/google'
 }
 
+// ================= FACEBOOK LOGIN =================
 function loginFacebook() {
-  window.location.href =
-    'http://localhost:8080/oauth2/authorization/facebook'
+  alert('Facebook login chưa setup')
 }
 </script>
-
 <style scoped>
 * { box-sizing: border-box; }
 
