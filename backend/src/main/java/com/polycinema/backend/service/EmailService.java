@@ -13,23 +13,18 @@ public class EmailService {
 
     // ================= OTP =================
     public void sendOtp(String email, String otp) {
-        try {
-            SimpleMailMessage msg = new SimpleMailMessage();
-            msg.setTo(email);
-            msg.setSubject("PolyCinema - OTP Reset Password");
+        SimpleMailMessage msg = new SimpleMailMessage();
+        msg.setTo(email);
+        msg.setSubject("PolyCinema - Mã OTP xác thực");
 
-            msg.setText(
-                    "Xin chào,\n\n" +
-                    "Mã OTP của bạn là: " + otp + "\n" +
-                    "Hiệu lực: 15 phút\n\n" +
-                    "Nếu bạn không yêu cầu, hãy bỏ qua email này."
-            );
+        msg.setText(
+                "Xin chào,\n\n" +
+                "Mã OTP của bạn là: " + otp + "\n" +
+                "Hiệu lực: 15 phút\n\n" +
+                "Nếu bạn không yêu cầu, hãy bỏ qua email này."
+        );
 
-            mailSender.send(msg);
-
-        } catch (Exception e) {
-            System.out.println("❌ Send OTP email failed: " + e.getMessage());
-        }
+        mailSender.send(msg);
     }
 
     // ================= WELCOME =================

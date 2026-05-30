@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -27,47 +28,70 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             Authentication authentication
     ) throws IOException {
 
-        OAuth2User user = (OAuth2User) authentication.getPrincipal();
+        OAuth2User user =
+                (OAuth2User) authentication.getPrincipal();
 
-        String email = user.getAttribute("email");
-        String name = user.getAttribute("name");
-        String googleId = user.getAttribute("sub");
+        OAuth2AuthenticationToken oauthToken =
+                (OAuth2AuthenticationToken) authentication;
 
-        NguoiDung nd = repo.findByEmail(email).orElse(null);
+        String provider =
+                oauthToken.getAuthorizedClientRegistrationId();
 
-        // Nếu chưa có tài khoản -> tạo mới
+        String email;
+        String name;
+        String socialId;
+
+        // GOOGLE
+        if ("google".equals(provider)) {
+
+            email = user.getAttribute("email");
+            name = user.getAttribute("name");
+            socialId = user.getAttribute("sub");
+
+        }
+        // DISCORD -> lưu vào FacebookId
+        else if ("discord".equals(provider)) {
+
+            email = user.getAttribute("email");
+            name = user.getAttribute("username");
+            socialId = user.getAttribute("id");
+
+        } else {
+            throw new RuntimeException(
+                    "Provider không hỗ trợ: " + provider
+            );
+        }
+
+        NguoiDung nd =
+                repo.findByEmail(email).orElse(null);
+
         if (nd == null) {
 
             nd = new NguoiDung();
             nd.setEmail(email);
             nd.setHoTen(name);
-            nd.setGoogleId(googleId);
-
-            // User Google chưa có số điện thoại
-            nd.setSoDienThoai(null);
-
             nd.setVaiTro("customer");
             nd.setTrangThai(true);
             nd.setIsEmailVerified(true);
-
-            repo.save(nd);
-
-        } else {
-
-            // Nếu đã tồn tại email thì chỉ cập nhật GoogleId
-            nd.setGoogleId(googleId);
-
-            if (nd.getIsEmailVerified() == null) {
-                nd.setIsEmailVerified(true);
-            }
-
-            repo.save(nd);
         }
 
-        String token = jwtUtil.generateToken(
-                nd.getEmail(),
-                nd.getVaiTro()
-        );
+        // Google -> GoogleId
+        if ("google".equals(provider)) {
+            nd.setGoogleId(socialId);
+        }
+
+        // Discord -> FacebookId
+        if ("discord".equals(provider)) {
+            nd.setFacebookId(socialId);
+        }
+
+        repo.save(nd);
+
+        String token =
+                jwtUtil.generateToken(
+                        nd.getEmail(),
+                        nd.getVaiTro()
+                );
 
         response.sendRedirect(
                 "http://localhost:5173/?token=" + token

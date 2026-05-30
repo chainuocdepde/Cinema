@@ -138,6 +138,9 @@ public class AuthService {
     // ================= SEND VERIFY OTP =================
     public String sendVerifyOtp(String email) {
 
+        String emailError = validateEmail(email);
+        if (emailError != null) return emailError;
+
         email = email.trim().toLowerCase();
 
         if (repo.findByEmail(email).isEmpty())
@@ -156,6 +159,7 @@ public class AuthService {
             emailService.sendOtp(email, otp);
         } catch (Exception e) {
             e.printStackTrace();
+            otpStore.remove(email);
             return "Không gửi được OTP";
         }
 
@@ -165,7 +169,13 @@ public class AuthService {
     // ================= VERIFY EMAIL =================
     public String verifyEmail(String email, String otp) {
 
+        String emailError = validateEmail(email);
+        if (emailError != null) return emailError;
+
+        if (otp == null || otp.isBlank()) return "Vui lòng nhập mã OTP";
+
         email = email.trim().toLowerCase();
+        otp = otp.trim();
 
         OtpData data = otpStore.get(email);
 
@@ -203,7 +213,17 @@ public class AuthService {
     // ================= RESET PASSWORD =================
     public String resetPassword(String email, String otp, String newPass) {
 
+        String emailError = validateEmail(email);
+        if (emailError != null) return emailError;
+
+        if (otp == null || otp.isBlank()) return "Vui lòng nhập mã OTP";
+
+        if (newPass == null || newPass.isBlank()) return "Mật khẩu mới không được để trống";
+
+        if (newPass.length() < 6) return "Mật khẩu phải từ 6 ký tự";
+
         email = email.trim().toLowerCase();
+        otp = otp.trim();
 
         OtpData data = otpStore.get(email);
 

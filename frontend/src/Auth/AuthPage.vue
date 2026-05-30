@@ -41,8 +41,8 @@
               <button class="google" @click="loginGoogle" :disabled="isLoading.google">
                 <span class="google-icon">🔐</span> Google
               </button>
-              <button class="facebook" @click="loginFacebook">
-                <span class="fb-icon">📱</span> Facebook
+              <button class="discord" @click="loginDiscord" :disabled="isLoading.discord">
+                <span class="discord-icon">🎮</span> Discord
               </button>
             </div>
 
@@ -105,6 +105,10 @@
             </div>
             <!-- STEP 2 -->
             <div v-else>
+              <p class="info-text">
+                Mã OTP đã được gửi đến email:<br>
+                <strong>{{ forgotForm.email }}</strong>
+              </p>
               <input v-model="forgotForm.otp" placeholder="Nhập OTP" maxlength="6" type="number" />
               <input v-model="forgotForm.newPassword" type="password" placeholder="Mật khẩu mới (tối thiểu 6 ký tự)" />
               <button @click="resetPassword" :disabled="isLoading.reset">Đổi mật khẩu</button>
@@ -156,7 +160,8 @@ const isLoading = ref({
   resend: false,
   forgot: false,
   reset: false,
-  google: false
+  google: false,
+  discord: false
 })
 
 // ================= FORM =================
@@ -182,6 +187,17 @@ const verifyForm = ref({
   email: '',
   otp: ''
 })
+
+async function getMessage(res) {
+  const text = await res.text()
+
+  try {
+    const data = JSON.parse(text)
+    return data.message || text
+  } catch {
+    return text
+  }
+}
 
 // ================= VALIDATION FUNCTIONS =================
 function isValidEmail(email) {
@@ -259,7 +275,7 @@ async function login() {
       body: JSON.stringify(loginForm.value)
     })
 
-    const text = await res.text()
+    const text = await getMessage(res)
 
     if (!res.ok) {
       if (text === "Email chưa xác thực") {
@@ -267,8 +283,7 @@ async function login() {
         isVerify.value = true
         error.value = "Email của bạn chưa được xác thực. Vui lòng xác thực ngay bây giờ."
       } else {
-        // Hiển thị lỗi chung cho tất cả các trường hợp sai
-        error.value = 'Sai email hoặc mật khẩu'
+        error.value = text || 'Sai email hoặc mật khẩu'
       }
       return
     }
@@ -343,14 +358,14 @@ async function register() {
       body: JSON.stringify(registerForm.value)
     })
 
-    const text = await res.text()
+    const text = await getMessage(res)
 
     if (!res.ok) {
       error.value = text || 'Đăng ký thất bại'
       return
     }
 
-    success.value = text
+    success.value = text || 'Đăng ký thành công. Vui lòng xác thực email'
     verifyForm.value.email = registerForm.value.email
     isRegister.value = false
     isVerify.value = true
@@ -365,8 +380,15 @@ async function register() {
 // ================= VERIFY EMAIL =================
 async function verifyOtp() {
   clearMsg()
+  verifyForm.value.email = verifyForm.value.email.trim().toLowerCase()
+  verifyForm.value.otp = String(verifyForm.value.otp).trim()
 
-  if (!verifyForm.value.otp.trim()) {
+  if (!verifyForm.value.email) {
+    error.value = 'Không tìm thấy email cần xác thực. Vui lòng đăng nhập hoặc đăng ký lại để nhận OTP.'
+    return
+  }
+
+  if (!verifyForm.value.otp) {
     error.value = 'OTP không được để trống'
     return
   }
@@ -390,10 +412,13 @@ async function verifyOtp() {
       })
     })
 
-    const text = await res.text()
+    const text = await getMessage(res)
 
     if (!res.ok) {
       error.value = text || 'Xác thực thất bại'
+      if (text === 'OTP hết hạn' || text === 'Không tìm thấy OTP') {
+        verifyForm.value.otp = ''
+      }
       return
     }
 
@@ -413,6 +438,13 @@ async function verifyOtp() {
 // ================= RESEND OTP =================
 async function resendOtp() {
   clearMsg()
+  verifyForm.value.email = verifyForm.value.email.trim().toLowerCase()
+
+  if (!verifyForm.value.email) {
+    error.value = 'Không tìm thấy email cần xác thực. Vui lòng đăng nhập hoặc đăng ký lại để nhận OTP.'
+    return
+  }
+
   isLoading.value.resend = true
 
   try {
@@ -426,12 +458,13 @@ async function resendOtp() {
       })
     })
 
-    const text = await res.text()
+    const text = await getMessage(res)
 
     if (!res.ok) {
-      error.value = text
+      error.value = text || 'Không gửi được mã OTP, vui lòng thử lại'
     } else {
-      success.value = text
+      verifyForm.value.otp = ''
+      success.value = text || 'OTP đã gửi'
     }
 
   } catch {
@@ -444,8 +477,9 @@ async function resendOtp() {
 // ================= FORGOT PASSWORD =================
 async function sendOtp() {
   clearMsg()
+  forgotForm.value.email = forgotForm.value.email.trim().toLowerCase()
 
-  if (!forgotForm.value.email.trim()) {
+  if (!forgotForm.value.email) {
     error.value = 'Email không được để trống'
     return
   }
@@ -468,14 +502,14 @@ async function sendOtp() {
       })
     })
 
-    const text = await res.text()
+    const text = await getMessage(res)
 
     if (!res.ok) {
-      error.value = text
+      error.value = text || 'Không gửi được mã OTP, vui lòng thử lại'
       return
     }
 
-    success.value = text
+    success.value = text || 'OTP đã gửi'
     otpSent.value = true
 
   } catch {
@@ -487,8 +521,16 @@ async function sendOtp() {
 
 async function resetPassword() {
   clearMsg()
+  forgotForm.value.email = forgotForm.value.email.trim().toLowerCase()
+  forgotForm.value.otp = String(forgotForm.value.otp).trim()
 
-  if (!forgotForm.value.otp.trim()) {
+  if (!forgotForm.value.email) {
+    error.value = 'Email không được để trống. Vui lòng gửi OTP lại.'
+    otpSent.value = false
+    return
+  }
+
+  if (!forgotForm.value.otp) {
     error.value = 'OTP không được để trống'
     return
   }
@@ -516,13 +558,20 @@ async function resetPassword() {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(forgotForm.value)
+      body: JSON.stringify({
+        email: forgotForm.value.email,
+        otp: forgotForm.value.otp,
+        newPassword: forgotForm.value.newPassword
+      })
     })
 
-    const text = await res.text()
+    const text = await getMessage(res)
 
     if (!res.ok) {
-      error.value = text
+      error.value = text || 'Đổi mật khẩu thất bại'
+      if (text === 'OTP hết hạn' || text === 'Không tìm thấy OTP') {
+        forgotForm.value.otp = ''
+      }
       return
     }
 
@@ -540,12 +589,15 @@ async function resetPassword() {
 
 // ================= SOCIAL LOGIN =================
 function loginGoogle() {
+  clearMsg()
   isLoading.value.google = true
   window.location.href = 'http://localhost:8080/oauth2/authorization/google'
 }
 
-function loginFacebook() {
-  error.value = 'Facebook login chưa được triển khai'
+function loginDiscord() {
+  clearMsg()
+  isLoading.value.discord = true
+  window.location.href = 'http://localhost:8080/oauth2/authorization/discord'
 }
 </script>
 
@@ -741,20 +793,20 @@ button:disabled {
   font-size: 16px;
 }
 
-.facebook {
-  background: linear-gradient(135deg, #1877f2, #0c63e4);
-  box-shadow: 0 4px 12px rgba(24, 119, 242, 0.3);
+.discord {
+  background: linear-gradient(135deg, #5865f2, #404eed);
+  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
 }
 
-.facebook:hover:not(:disabled) {
-  box-shadow: 0 6px 16px rgba(24, 119, 242, 0.4);
+.discord:hover:not(:disabled) {
+  box-shadow: 0 6px 16px rgba(88, 101, 242, 0.4);
 }
 
-.fb-icon {
+.discord-icon {
   font-size: 16px;
 }
 
