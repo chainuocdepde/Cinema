@@ -64,58 +64,76 @@ public class AuthService {
         return null;
     }
 
-    // ================= REGISTER =================
     public String register(String email, String password, String hoTen, String soDienThoai) {
 
-        email = email.trim().toLowerCase();
+    String emailError = validateEmail(email);
+    if (emailError != null) return emailError;
 
-        String emailError = validateEmail(email);
-        if (emailError != null) return emailError;
+    if (password == null || password.isBlank())
+        return "Mật khẩu không được để trống";
 
-        String phoneError = validatePhone(soDienThoai);
-        if (phoneError != null) return phoneError;
+    if (password.length() < 6)
+        return "Mật khẩu phải từ 6 ký tự";
 
-        String nameError = validateName(hoTen);
-        if (nameError != null) return nameError;
+    String phoneError = validatePhone(soDienThoai);
+    if (phoneError != null) return phoneError;
 
-        if (repo.findByEmail(email).isPresent())
-            return "Email đã tồn tại";
+    String nameError = validateName(hoTen);
+    if (nameError != null) return nameError;
 
-        if (repo.findBySoDienThoai(soDienThoai).isPresent())
-            return "Số điện thoại đã tồn tại";
+    email = email.trim().toLowerCase();
+    hoTen = hoTen.trim();
+    soDienThoai = soDienThoai.trim();
 
-        NguoiDung u = new NguoiDung();
-        u.setEmail(email);
-        u.setMatKhauHash(encoder.encode(password));
-        u.setHoTen(hoTen);
-        u.setSoDienThoai(soDienThoai);
-        u.setVaiTro("customer");
-        u.setTrangThai(true);
-        u.setIsEmailVerified(false);
+    if (repo.findByEmail(email).isPresent())
+        return "Email đã tồn tại";
 
-        repo.save(u);
+    if (repo.findBySoDienThoai(soDienThoai).isPresent())
+        return "Số điện thoại đã tồn tại";
 
-        // gửi OTP verify
-        sendVerifyOtp(email);
+    NguoiDung u = new NguoiDung();
+    u.setEmail(email);
+    u.setMatKhauHash(encoder.encode(password));
+    u.setHoTen(hoTen);
+    u.setSoDienThoai(soDienThoai);
+    u.setVaiTro("customer");
+    u.setTrangThai(true);
+    u.setIsEmailVerified(false);
 
-        return "Đăng ký thành công. Vui lòng xác thực email";
-    }
+    repo.save(u);
+
+    sendVerifyOtp(email);
+
+    return "Đăng ký thành công. Vui lòng xác thực email";
+}
 
     // ================= LOGIN =================
-    public String login(String email, String password) {
+ public String login(String email, String password) {
 
-        email = email.trim().toLowerCase();
+    if (email == null || email.isBlank())
+        return "Email không được để trống";
 
-        NguoiDung u = repo.findByEmail(email).orElse(null);
+    if (password == null || password.isBlank())
+        return "Mật khẩu không được để trống";
 
-        if (u == null || !encoder.matches(password, u.getMatKhauHash()))
-            return "Sai email hoặc mật khẩu";
+    email = email.trim().toLowerCase();
 
-        if (!Boolean.TRUE.equals(u.getIsEmailVerified()))
-            return "Email chưa xác thực";
+    NguoiDung u = repo.findByEmail(email).orElse(null);
 
-        return jwtUtil.generateToken(email, u.getVaiTro());
-    }
+    if (u == null)
+        return "Sai email hoặc mật khẩu";
+
+    if (!encoder.matches(password, u.getMatKhauHash()))
+        return "Sai email hoặc mật khẩu";
+
+    if (!Boolean.TRUE.equals(u.getTrangThai()))
+        return "Tài khoản đã bị khóa";
+
+    if (!Boolean.TRUE.equals(u.getIsEmailVerified()))
+        return "Email chưa xác thực";
+
+    return jwtUtil.generateToken(email, u.getVaiTro());
+}
 
     // ================= SEND VERIFY OTP =================
     public String sendVerifyOtp(String email) {

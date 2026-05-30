@@ -35,13 +35,17 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
         NguoiDung nd = repo.findByEmail(email).orElse(null);
 
-        // User chưa tồn tại -> tạo mới
+        // Nếu chưa có tài khoản -> tạo mới
         if (nd == null) {
 
             nd = new NguoiDung();
             nd.setEmail(email);
             nd.setHoTen(name);
             nd.setGoogleId(googleId);
+
+            // User Google chưa có số điện thoại
+            nd.setSoDienThoai(null);
+
             nd.setVaiTro("customer");
             nd.setTrangThai(true);
             nd.setIsEmailVerified(true);
@@ -50,18 +54,21 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
         } else {
 
-            // Có email rồi -> cập nhật GoogleId
+            // Nếu đã tồn tại email thì chỉ cập nhật GoogleId
             nd.setGoogleId(googleId);
+
+            if (nd.getIsEmailVerified() == null) {
+                nd.setIsEmailVerified(true);
+            }
+
             repo.save(nd);
         }
 
-        // tạo JWT (email + role)
         String token = jwtUtil.generateToken(
-                email,
+                nd.getEmail(),
                 nd.getVaiTro()
         );
 
-        // redirect về Vue
         response.sendRedirect(
                 "http://localhost:5173/?token=" + token
         );
