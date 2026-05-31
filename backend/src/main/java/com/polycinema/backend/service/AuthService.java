@@ -22,6 +22,16 @@ public class AuthService {
 
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
+    private String normalizeRole(String role) {
+        if (role == null || role.isBlank()) return "USER";
+
+        String normalized = role.trim().toUpperCase();
+        if (normalized.equals("CUSTOMER")) return "USER";
+        if (normalized.startsWith("ROLE_")) return normalized.substring(5);
+
+        return normalized;
+    }
+
     // ================= OTP STORE =================
     private final Map<String, OtpData> otpStore = new HashMap<>();
     private static final long EXPIRE_TIME = 15 * 60 * 1000;
@@ -96,7 +106,7 @@ public class AuthService {
     u.setMatKhauHash(encoder.encode(password));
     u.setHoTen(hoTen);
     u.setSoDienThoai(soDienThoai);
-    u.setVaiTro("customer");
+    u.setVaiTro("USER");
     u.setTrangThai(true);
     u.setIsEmailVerified(false);
 
@@ -132,7 +142,7 @@ public class AuthService {
     if (!Boolean.TRUE.equals(u.getIsEmailVerified()))
         return "Email chưa xác thực";
 
-    return jwtUtil.generateToken(email, u.getVaiTro());
+    return jwtUtil.generateToken(email, normalizeRole(u.getVaiTro()));
 }
 
     // ================= SEND VERIFY OTP =================
